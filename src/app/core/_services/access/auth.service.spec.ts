@@ -1,5 +1,6 @@
 import { Buffer } from 'buffer';
 
+import { SSO_REDIRECT_KEY } from '@constants/sso.config';
 import { Subject, of } from 'rxjs';
 
 import { provideHttpClient } from '@angular/common/http';
@@ -12,10 +13,10 @@ import { Permission } from '@models/global-permission-group.model';
 
 import { AuthService } from '@services/access/auth.service';
 import { LoginRedirectService } from '@services/access/login-redirect.service';
-import { OidcService } from '@services/access/oidc.service';
 import { PermissionService } from '@services/permission/permission.service';
 import { ConfigService } from '@services/shared/config.service';
 import { LocalStorageService } from '@services/storage/local-storage.service';
+import { SessionStorageService } from '@services/storage/session-storage.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -425,6 +426,7 @@ describe('AuthService refresh token', () => {
 
 describe('AuthService.completeSsoLogin', () => {
   let service: AuthService;
+  let sessionStorageService: SessionStorageService<string>;
   let httpMock: HttpTestingController;
   let storage: { _store: Record<string, AuthData> };
   let loadPermissions: jasmine.Spy;
@@ -473,12 +475,13 @@ describe('AuthService.completeSsoLogin', () => {
 
     service = TestBed.inject(AuthService);
     httpMock = TestBed.inject(HttpTestingController);
+    sessionStorageService = TestBed.inject(SessionStorageService<string>);
     storage = storageMock;
-    sessionStorage.removeItem(OidcService.REDIRECT_KEY);
+    sessionStorageService.removeItem(SSO_REDIRECT_KEY);
   });
 
   afterEach(() => {
-    sessionStorage.removeItem(OidcService.REDIRECT_KEY);
+    sessionStorageService.removeItem(SSO_REDIRECT_KEY);
     httpMock.verify();
   });
 
@@ -503,11 +506,11 @@ describe('AuthService.completeSsoLogin', () => {
   });
 
   it('completeSsoLogin restores redirect from sessionStorage and clears it', () => {
-    sessionStorage.setItem(OidcService.REDIRECT_KEY, '/agents');
+    sessionStorageService.setItem(SSO_REDIRECT_KEY, '/agents', 0);
 
     service.completeSsoLogin().subscribe();
     // The key is consumed before the request is answered
-    expect(sessionStorage.getItem(OidcService.REDIRECT_KEY)).toBeNull();
+    expect(sessionStorageService.getItem(SSO_REDIRECT_KEY)).toBeNull();
 
     httpMock.expectOne(REFRESH_URL).flush({ token: tokenForUser7(), expires: Math.floor(Date.now() / 1000) + 3600 });
 
@@ -530,11 +533,30 @@ describe('AuthService.completeSsoLogin', () => {
   });
 
   it('completeSsoLogin does not keep the redirect target after a failed completion', () => {
-    sessionStorage.setItem(OidcService.REDIRECT_KEY, '/agents');
+    sessionStorageService.setItem(SSO_REDIRECT_KEY, '/agents', 0);
 
     service.completeSsoLogin().subscribe({ error: () => undefined });
     httpMock.expectOne(REFRESH_URL).flush({ message: 'nope' }, { status: 401, statusText: 'Unauthorized' });
 
     expect(service.redirectUrl).toBe('');
+  });
+
+  it('completeSsoLogin skips the global error dialog on the refresh call', () => {
+    service.completeSsoLogin().subscribe({ error: () => undefined });
+    const req = httpMock.expectOne(REFRESH_URL);
+    expect(req.request.headers.get('X-Skip-Error-Dialog')).toBe('true');
+    req.flush({ message: 'nope' }, { status: 401, statusText: 'Unauthorized' });
+  });
+
+  ['https://evil.test', '//evil.test', 'relative/path'].forEach((target) => {
+    it(`completeSsoLogin ignores a stored non-app redirect target: ${target}`, () => {
+      sessionStorageService.setItem(SSO_REDIRECT_KEY, target, 0);
+
+      service.completeSsoLogin().subscribe();
+      httpMock.expectOne(REFRESH_URL).flush({ token: tokenForUser7(), expires: Math.floor(Date.now() / 1000) + 3600 });
+
+      expect(handlePostLoginRedirect).toHaveBeenCalledOnceWith('7', '');
+      expect(sessionStorageService.getItem(SSO_REDIRECT_KEY)).toBeNull();
+    });
   });
 });

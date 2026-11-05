@@ -1,3 +1,5 @@
+import { SSO_REDIRECT_KEY, SsoErrorReason, isSsoErrorReason, ssoRedirectSchema } from '@constants/sso.config';
+
 import { HttpErrorResponse } from '@angular/common/http';
 import { AfterViewInit, Component, DestroyRef, ElementRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -7,9 +9,10 @@ import { Validators } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 
 import { AuthService } from '@services/access/auth.service';
-import { OidcConfigResponse, OidcService } from '@services/access/oidc.service';
+import { DEFAULT_OIDC_CONFIG, OidcConfigResponse, OidcService } from '@services/access/oidc.service';
 import { ConfigService } from '@services/shared/config.service';
 import { ThemeService } from '@services/shared/theme.service';
+import { SessionStorageService } from '@services/storage/session-storage.service';
 
 import { HeaderConfig } from '@src/config/default/app/config.model';
 import { environment } from '@src/environments/environment';
@@ -20,10 +23,10 @@ export interface LoginForm {
 }
 
 /** Fixed messages for `?sso=error&reason=<code>`. Unknown reasons use `provider_error`. */
-const SSO_ERROR_MESSAGES: Record<string, string> = {
-  expired: 'Your sign-in attempt expired. Please try again.',
-  provider_error: 'Single sign-on failed. Please try again or contact your administrator.',
-  user_disabled: 'Your account is disabled. Please contact your administrator.'
+const SSO_ERROR_MESSAGES: Partial<Record<SsoErrorReason, string>> & Record<'expired' | 'provider_error', string> = {
+  [SsoErrorReason.EXPIRED]: 'Your sign-in attempt expired. Please try again.',
+  [SsoErrorReason.PROVIDER_ERROR]: 'Single sign-on failed. Please try again or contact your administrator.',
+  [SsoErrorReason.USER_DISABLED]: 'Your account is disabled. Please contact your administrator.'
 };
 
 @Component({
@@ -39,6 +42,7 @@ export class AuthComponent implements OnInit, AfterViewInit {
   private themeService = inject(ThemeService);
   private host = inject(ElementRef);
   private oidcService = inject(OidcService);
+  private sessionStorage = inject<SessionStorageService<string>>(SessionStorageService);
   private route = inject(ActivatedRoute);
 
   /** Form group for the new SuperHashlist. */
@@ -51,9 +55,9 @@ export class AuthComponent implements OnInit, AfterViewInit {
   /** on loggin loading */
   isLoading = false;
 
-  oidcConfig: OidcConfigResponse = { enabled: false, displayName: 'SSO', localLoginEnabled: true };
+  oidcConfig: OidcConfigResponse = DEFAULT_OIDC_CONFIG;
   /** True after returning from the provider with an identity that still has to be linked. */
-  linkRequired = false;
+  isLinkRequired = false;
   /** Message shown above the form (SSO error or link failure). */
   ssoMessage = '';
 
@@ -74,7 +78,7 @@ export class AuthComponent implements OnInit, AfterViewInit {
 
     const params = this.route.snapshot.queryParamMap;
     const sso = params.get('sso');
-    this.linkRequired = sso === 'link-required';
+    this.isLinkRequired = sso === 'link-required';
     if (sso === 'error') {
       this.ssoMessage = this.errorMessage(params.get('reason'));
     }
@@ -87,11 +91,11 @@ export class AuthComponent implements OnInit, AfterViewInit {
   }
 
   get showSsoButton(): boolean {
-    return this.oidcConfig.enabled && !this.linkRequired;
+    return this.oidcConfig.enabled && !this.isLinkRequired;
   }
 
   get showForm(): boolean {
-    return this.oidcConfig.localLoginEnabled || this.linkRequired;
+    return this.oidcConfig.localLoginEnabled || this.isLinkRequired;
   }
 
   get linkRequiredMessage(): string {
@@ -102,7 +106,7 @@ export class AuthComponent implements OnInit, AfterViewInit {
   onSsoLogin(): void {
     const redirect = this.authService.redirectUrl;
     if (redirect) {
-      sessionStorage.setItem(OidcService.REDIRECT_KEY, redirect);
+      this.sessionStorage.setItem(SSO_REDIRECT_KEY, redirect, 0, ssoRedirectSchema);
     }
     this.navigateTo(this.oidcService.loginUrl());
   }
@@ -113,7 +117,8 @@ export class AuthComponent implements OnInit, AfterViewInit {
   }
 
   private errorMessage(reason: string | null): string {
-    return SSO_ERROR_MESSAGES[reason ?? ''] ?? SSO_ERROR_MESSAGES['provider_error'];
+    const known = isSsoErrorReason(reason) ? SSO_ERROR_MESSAGES[reason] : undefined;
+    return known ?? SSO_ERROR_MESSAGES[SsoErrorReason.PROVIDER_ERROR];
   }
 
   /**
@@ -158,7 +163,7 @@ export class AuthComponent implements OnInit, AfterViewInit {
 
     this.isLoading = true; // Show spinner
 
-    if (this.linkRequired) {
+    if (this.isLinkRequired) {
       this.submitLink(username, password);
       return;
     }
@@ -191,7 +196,8 @@ export class AuthComponent implements OnInit, AfterViewInit {
         error: (err: HttpErrorResponse) => {
           this.isLoading = false;
           // 401 = wrong credentials (the pending request is still valid); anything else means it is gone.
-          this.ssoMessage = err.status === 401 ? 'Incorrect username or password.' : SSO_ERROR_MESSAGES['expired'];
+          this.ssoMessage =
+            err.status === 401 ? 'Incorrect username or password.' : SSO_ERROR_MESSAGES[SsoErrorReason.EXPIRED];
         }
       });
   }
@@ -204,7 +210,7 @@ export class AuthComponent implements OnInit, AfterViewInit {
         next: () => this.loginForm.reset(),
         error: () => {
           this.isLoading = false;
-          this.ssoMessage = SSO_ERROR_MESSAGES['expired'];
+          this.ssoMessage = SSO_ERROR_MESSAGES[SsoErrorReason.EXPIRED];
         },
         complete: () => (this.isLoading = false)
       });

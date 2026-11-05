@@ -11,7 +11,7 @@
       /></a>
     </div>
     <mat-card-content>
-      @if (linkRequired) {
+      @if (isLinkRequired) {
         <fixed-alert [message]="linkRequiredMessage"></fixed-alert>
       }
       @if (ssoMessage) {

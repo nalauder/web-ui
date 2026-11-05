@@ -35,6 +35,14 @@ describe('OidcService', () => {
     expect(results).toEqual([config, config]);
   });
 
+  it('getConfig skips the global error dialog and the response cache', () => {
+    service.getConfig().subscribe();
+    const req = httpMock.expectOne(`${base}/auth/oidc/config`);
+    expect(req.request.headers.get('X-Skip-Error-Dialog')).toBe('true');
+    expect(req.request.headers.get('X-Cache-Skip')).toBe('true');
+    req.flush({ enabled: false, displayName: 'SSO', localLoginEnabled: true });
+  });
+
   it('falls back to a disabled config on error', () => {
     let result: unknown;
     service.getConfig().subscribe((c) => (result = c));

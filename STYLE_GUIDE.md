@@ -659,13 +659,14 @@ if (!result.success) {
 
 **Keys and their schemas.**
 
-| Key                | Owner                                  | Schema                        |
-| ------------------ | -------------------------------------- | ----------------------------- |
-| `theme`            | `theme.service.ts`                     | inline `z.string().min(1)`    |
-| `userData`         | `auth.service.ts` (JWT token + expiry) | `_models/user-data.schema.ts` |
-| `ui-config`        | `shared/ui-settings.service.ts`        | `_models/config-ui.schema.ts` |
-| `uis`              | cached server settings                 | `uisSettingsSchema`           |
-| `user_permissions` | `permission/permission.service.ts`     | validated, 15-min TTL         |
+| Key                        | Owner                                               | Schema                                                              |
+| -------------------------- | --------------------------------------------------- | ------------------------------------------------------------------- |
+| `theme`                    | `theme.service.ts`                                  | inline `z.string().min(1)`                                          |
+| `userData`                 | `auth.service.ts` (JWT token + expiry)              | `_models/user-data.schema.ts`                                       |
+| `ui-config`                | `shared/ui-settings.service.ts`                     | `_models/config-ui.schema.ts`                                       |
+| `uis`                      | cached server settings                              | `uisSettingsSchema`                                                 |
+| `user_permissions`         | `permission/permission.service.ts`                  | validated, 15-min TTL                                               |
+| `hashtopolis-sso-redirect` | `auth.service.ts` (sessionStorage, SSO return path) | `ssoRedirectSchema` in `_constants/sso.config.ts`: in-app path only |
 
 `ui-config` holds theme, layout, time format, `refreshPage`, `refreshInterval`, and
 per-table `tableSettings`. Read and write it only through the injected `UiSettingsService`, never

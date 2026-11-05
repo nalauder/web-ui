@@ -1,5 +1,7 @@
 import { Buffer } from 'buffer';
 
+import { HTTP_SKIP_ERROR_HEADER_CONFIG } from '@constants/http.config';
+import { SSO_REDIRECT_KEY, ssoRedirectSchema } from '@constants/sso.config';
 import {
   BehaviorSubject,
   Observable,
@@ -25,10 +27,10 @@ import { UserId } from '@models/id.types';
 import { JwtPayload } from '@models/jwt-payload.model';
 
 import { LoginRedirectService } from '@services/access/login-redirect.service';
-import { OidcService } from '@services/access/oidc.service';
 import { PermissionService } from '@services/permission/permission.service';
 import { ConfigService } from '@services/shared/config.service';
 import { LocalStorageService } from '@services/storage/local-storage.service';
+import { SessionStorageService } from '@services/storage/session-storage.service';
 
 export interface AuthResponseData {
   token: string;
@@ -74,6 +76,7 @@ export class AuthService {
     private router: Router,
     private cs: ConfigService,
     private storage: LocalStorageService<AuthData>,
+    private sessionStorage: SessionStorageService<string>,
     private injector: Injector // Use injector to delay injection of PermissionService to avoid circular dependency
   ) {
     this.userLoggedIn.next(false);
@@ -263,13 +266,17 @@ export class AuthService {
    * existing session.
    */
   completeSsoLogin(): Observable<void> {
-    const redirect = sessionStorage.getItem(OidcService.REDIRECT_KEY);
-    sessionStorage.removeItem(OidcService.REDIRECT_KEY);
+    // Only in-app paths are accepted; anything else is treated as no redirect.
+    const redirect = this.sessionStorage.getItem(SSO_REDIRECT_KEY, ssoRedirectSchema);
+    this.sessionStorage.removeItem(SSO_REDIRECT_KEY);
     const previousRedirectUrl = this.redirectUrl;
-    this.redirectUrl = String(redirect ?? '');
+    this.redirectUrl = redirect ?? '';
 
     return this.http
-      .post<AuthResponseData>(this.cs.getEndpoint() + this.endpoint + '/refresh', null, { withCredentials: true })
+      .post<AuthResponseData>(this.cs.getEndpoint() + this.endpoint + '/refresh', null, {
+        withCredentials: true,
+        headers: HTTP_SKIP_ERROR_HEADER_CONFIG
+      })
       .pipe(
         switchMap((resData) => this.onAuthenticated(resData.token, +resData.expires, '')),
         catchError((err) => {

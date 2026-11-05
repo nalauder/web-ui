@@ -1,4 +1,4 @@
-import { HTTP_SKIP_ERROR_HEADER_CONFIG } from '@constants/http.config';
+import { HTTP_SKIP_CACHE_HEADER_CONFIG, HTTP_SKIP_ERROR_HEADER_CONFIG } from '@constants/http.config';
 import type { OidcConfigResponse, OidcIdentityList, OidcLinkResponse } from '@generated/api/types';
 import { Observable, of } from 'rxjs';
 import { catchError, map, shareReplay } from 'rxjs/operators';
@@ -11,13 +11,11 @@ import { ConfigService } from '@services/shared/config.service';
 export type { OidcConfigResponse, OidcLinkResponse };
 export type OidcIdentityView = OidcIdentityList['identities'][number];
 
-const FALLBACK_CONFIG: OidcConfigResponse = { enabled: false, displayName: 'SSO', localLoginEnabled: true };
+/** Used when the config request fails: SSO off, local login on. */
+export const DEFAULT_OIDC_CONFIG: OidcConfigResponse = { enabled: false, displayName: 'SSO', localLoginEnabled: true };
 
 @Injectable({ providedIn: 'root' })
 export class OidcService {
-  /** sessionStorage key holding the in-app URL to return to after an SSO login. */
-  static readonly REDIRECT_KEY = 'hashtopolis-sso-redirect';
-
   private config$?: Observable<OidcConfigResponse>;
 
   private readonly http = inject(HttpClient);
@@ -28,10 +26,14 @@ export class OidcService {
 
   /** Public OIDC settings, fetched once. Falls back to "SSO disabled" if the request fails. */
   getConfig(): Observable<OidcConfigResponse> {
-    this.config$ ??= this.http.get<OidcConfigResponse>(`${this.base()}/config`).pipe(
-      catchError(() => of(FALLBACK_CONFIG)),
-      shareReplay(1)
-    );
+    this.config$ ??= this.http
+      .get<OidcConfigResponse>(`${this.base()}/config`, {
+        headers: { ...HTTP_SKIP_ERROR_HEADER_CONFIG, ...HTTP_SKIP_CACHE_HEADER_CONFIG }
+      })
+      .pipe(
+        catchError(() => of(DEFAULT_OIDC_CONFIG)),
+        shareReplay(1)
+      );
     return this.config$;
   }
 
