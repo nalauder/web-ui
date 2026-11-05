@@ -11,7 +11,7 @@
       /></a>
     </div>
     <mat-card-content>
-      @if (isLinkRequired) {
+      @if (configLoaded && isLinkRequired) {
         <fixed-alert [message]="linkRequiredMessage"></fixed-alert>
       }
       @if (ssoMessage) {
@@ -42,9 +42,11 @@
             <button-submit [name]="'Login'" [loading]="isLoading" data-testid="submit-button"></button-submit>
           </grid-buttons>
 
-          <div class="forgot-password-link">
-            <a routerLink="forgot">Forgot your password?</a>
-          </div>
+          @if (showForgotPassword) {
+            <div class="forgot-password-link">
+              <a routerLink="forgot">Forgot your password?</a>
+            </div>
+          }
         </form>
       }
       @if (showSsoButton) {

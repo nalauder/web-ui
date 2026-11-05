@@ -19,3 +19,11 @@ export type SsoErrorReason = (typeof SsoErrorReason)[keyof typeof SsoErrorReason
 
 export const isSsoErrorReason = (value: string | null): value is SsoErrorReason =>
   Object.values<string>(SsoErrorReason).includes(value ?? '');
+
+/** Fixed user-facing message for each reason code, shared by the login page and account settings. */
+export const SSO_ERROR_MESSAGES: Record<SsoErrorReason, string> = {
+  [SsoErrorReason.EXPIRED]: 'Your sign-in attempt expired. Please try again.',
+  [SsoErrorReason.PROVIDER_ERROR]: 'Single sign-on failed. Please try again or contact your administrator.',
+  [SsoErrorReason.USER_DISABLED]: 'Your account is disabled. Please contact your administrator.',
+  [SsoErrorReason.ALREADY_LINKED]: 'That account is already linked to another Hashtopolis user.'
+};

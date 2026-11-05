@@ -666,7 +666,7 @@ if (!result.success) {
 | `ui-config`                | `shared/ui-settings.service.ts`                     | `_models/config-ui.schema.ts`                                       |
 | `uis`                      | cached server settings                              | `uisSettingsSchema`                                                 |
 | `user_permissions`         | `permission/permission.service.ts`                  | validated, 15-min TTL                                               |
-| `hashtopolis-sso-redirect` | `auth.service.ts` (sessionStorage, SSO return path) | `ssoRedirectSchema` in `_constants/sso.config.ts`: in-app path only |
+| `hashtopolis-sso-redirect` | written by `auth.component.ts`, read/cleared by `auth.service.ts` (sessionStorage, SSO return path) | `ssoRedirectSchema` in `_constants/sso.config.ts`: in-app path only |
 
 `ui-config` holds theme, layout, time format, `refreshPage`, `refreshInterval`, and
 per-table `tableSettings`. Read and write it only through the injected `UiSettingsService`, never

@@ -1,5 +1,5 @@
 import { SSO_REDIRECT_KEY } from '@constants/sso.config';
-import { asyncScheduler, observeOn, of, throwError } from 'rxjs';
+import { Observable, Subject, asyncScheduler, observeOn, of, throwError } from 'rxjs';
 
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
@@ -34,11 +34,14 @@ describe('AuthComponent', () => {
 
   const defaultConfig: OidcConfigResponse = DEFAULT_OIDC_CONFIG;
 
-  const setup = async (config: OidcConfigResponse = defaultConfig, query: Record<string, string> = {}) => {
+  const setup = async (
+    config: OidcConfigResponse | Observable<OidcConfigResponse> = defaultConfig,
+    query: Record<string, string> = {}
+  ) => {
     TestBed.resetTestingModule();
     mockAuthService = jasmine.createSpyObj('AuthService', ['logIn', 'completeSsoLogin'], { redirectUrl: '' });
     mockOidc = jasmine.createSpyObj('OidcService', ['getConfig', 'loginUrl', 'linkPending']);
-    mockOidc.getConfig.and.returnValue(of(config));
+    mockOidc.getConfig.and.returnValue(config instanceof Observable ? config : of(config));
     mockOidc.loginUrl.and.returnValue('https://api.test/auth/oidc/login?returnTo=x');
     mockConfigService = jasmine.createSpyObj('ConfigService', ['getEndpoint']);
 
@@ -201,6 +204,57 @@ describe('AuthComponent', () => {
       fixture.detectChanges();
       expect(renderedText()).toContain('Your sign-in attempt expired. Please try again.');
       expect(component.isLoading).toBeFalse();
+    });
+
+    it('link-required 403 shows the disabled account message', async () => {
+      await setup(ssoConfig, { sso: 'link-required' });
+      mockOidc.linkPending.and.returnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
+      component.loginForm.setValue({ username: 'user', password: 'pass' });
+      component.onSubmit();
+      fixture.detectChanges();
+      expect(renderedText()).toContain('Your account is disabled. Please contact your administrator.');
+      expect(component.isLoading).toBeFalse();
+    });
+
+    it('link-required 409 shows the already linked message', async () => {
+      await setup(ssoConfig, { sso: 'link-required' });
+      mockOidc.linkPending.and.returnValue(throwError(() => new HttpErrorResponse({ status: 409 })));
+      component.loginForm.setValue({ username: 'user', password: 'pass' });
+      component.onSubmit();
+      fixture.detectChanges();
+      expect(renderedText()).toContain('That account is already linked to another Hashtopolis user.');
+      expect(component.isLoading).toBeFalse();
+    });
+
+    it('shows the forgot password link while local login is enabled', async () => {
+      await setup(ssoConfig);
+      expect(queryElement('.forgot-password-link')).toBeTruthy();
+    });
+
+    it('hides the forgot password link in link-required mode', async () => {
+      await setup({ ...ssoConfig, localLoginEnabled: false }, { sso: 'link-required' });
+      expect(queryElement('form')).toBeTruthy();
+      expect(queryElement('.forgot-password-link')).toBeNull();
+    });
+
+    it('renders neither the form nor the SSO button until the config has resolved', async () => {
+      const config$ = new Subject<OidcConfigResponse>();
+      await setup(config$);
+      expect(queryElement('form')).toBeNull();
+      expect(queryElement('[data-testid="button-sso-login"]')).toBeNull();
+
+      config$.next({ ...ssoConfig, localLoginEnabled: false });
+      fixture.detectChanges();
+      expect(queryElement('form')).toBeNull();
+      expect(queryElement('[data-testid="button-sso-login"]')).toBeTruthy();
+    });
+
+    it('renders the form once the config has resolved with local login enabled', async () => {
+      const config$ = new Subject<OidcConfigResponse>();
+      await setup(config$);
+      config$.next(ssoConfig);
+      fixture.detectChanges();
+      expect(queryElement('form')).toBeTruthy();
     });
 
     it('link-required completeSsoLogin failure shows the expired message', async () => {

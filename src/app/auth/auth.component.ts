@@ -1,4 +1,11 @@
-import { SSO_REDIRECT_KEY, SsoErrorReason, isSsoErrorReason, ssoRedirectSchema } from '@constants/sso.config';
+import { HttpStatus } from '@constants/http.config';
+import {
+  SSO_ERROR_MESSAGES,
+  SSO_REDIRECT_KEY,
+  SsoErrorReason,
+  isSsoErrorReason,
+  ssoRedirectSchema
+} from '@constants/sso.config';
 
 import { HttpErrorResponse } from '@angular/common/http';
 import { AfterViewInit, Component, DestroyRef, ElementRef, OnInit, inject } from '@angular/core';
@@ -21,13 +28,6 @@ export interface LoginForm {
   username: FormControl<string | null>;
   password: FormControl<string | null>;
 }
-
-/** Fixed messages for `?sso=error&reason=<code>`. Unknown reasons use `provider_error`. */
-const SSO_ERROR_MESSAGES: Partial<Record<SsoErrorReason, string>> & Record<'expired' | 'provider_error', string> = {
-  [SsoErrorReason.EXPIRED]: 'Your sign-in attempt expired. Please try again.',
-  [SsoErrorReason.PROVIDER_ERROR]: 'Single sign-on failed. Please try again or contact your administrator.',
-  [SsoErrorReason.USER_DISABLED]: 'Your account is disabled. Please contact your administrator.'
-};
 
 @Component({
   selector: 'app-login',
@@ -56,6 +56,8 @@ export class AuthComponent implements OnInit, AfterViewInit {
   isLoading = false;
 
   oidcConfig: OidcConfigResponse = DEFAULT_OIDC_CONFIG;
+  /** False until the OIDC config has resolved, so the form and SSO button never flash the wrong state. */
+  configLoaded = false;
   /** True after returning from the provider with an identity that still has to be linked. */
   isLinkRequired = false;
   /** Message shown above the form (SSO error or link failure). */
@@ -87,15 +89,21 @@ export class AuthComponent implements OnInit, AfterViewInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((config) => {
         this.oidcConfig = config;
+        this.configLoaded = true;
       });
   }
 
   get showSsoButton(): boolean {
-    return this.oidcConfig.enabled && !this.isLinkRequired;
+    return this.configLoaded && this.oidcConfig.enabled && !this.isLinkRequired;
   }
 
   get showForm(): boolean {
-    return this.oidcConfig.localLoginEnabled || this.isLinkRequired;
+    return this.configLoaded && (this.oidcConfig.localLoginEnabled || this.isLinkRequired);
+  }
+
+  /** Password reset only makes sense for a local login, which link-required mode is not. */
+  get showForgotPassword(): boolean {
+    return this.oidcConfig.localLoginEnabled && !this.isLinkRequired;
   }
 
   get linkRequiredMessage(): string {
@@ -117,8 +125,7 @@ export class AuthComponent implements OnInit, AfterViewInit {
   }
 
   private errorMessage(reason: string | null): string {
-    const known = isSsoErrorReason(reason) ? SSO_ERROR_MESSAGES[reason] : undefined;
-    return known ?? SSO_ERROR_MESSAGES[SsoErrorReason.PROVIDER_ERROR];
+    return SSO_ERROR_MESSAGES[isSsoErrorReason(reason) ? reason : SsoErrorReason.PROVIDER_ERROR];
   }
 
   /**
@@ -195,11 +202,23 @@ export class AuthComponent implements OnInit, AfterViewInit {
         next: () => this.finishLink(),
         error: (err: HttpErrorResponse) => {
           this.isLoading = false;
-          // 401 = wrong credentials (the pending request is still valid); anything else means it is gone.
-          this.ssoMessage =
-            err.status === 401 ? 'Incorrect username or password.' : SSO_ERROR_MESSAGES[SsoErrorReason.EXPIRED];
+          this.ssoMessage = this.linkErrorMessage(err.status);
         }
       });
+  }
+
+  /** 401 = wrong credentials (the pending request is still valid); anything else unmapped means it is gone. */
+  private linkErrorMessage(status: number): string {
+    switch (status) {
+      case HttpStatus.UNAUTHORIZED:
+        return 'Incorrect username or password.';
+      case HttpStatus.FORBIDDEN:
+        return SSO_ERROR_MESSAGES[SsoErrorReason.USER_DISABLED];
+      case HttpStatus.CONFLICT:
+        return SSO_ERROR_MESSAGES[SsoErrorReason.ALREADY_LINKED];
+      default:
+        return SSO_ERROR_MESSAGES[SsoErrorReason.EXPIRED];
+    }
   }
 
   private finishLink(): void {
