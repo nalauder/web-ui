@@ -1,3 +1,4 @@
+import { AuthInterceptorService } from '@interceptors/auth-interceptor.service';
 import { BehaviorSubject, of, throwError } from 'rxjs';
 
 import { HTTP_INTERCEPTORS, HttpClient, provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
@@ -6,7 +7,6 @@ import { TestBed } from '@angular/core/testing';
 
 import { AuthData } from '@models/auth-user.model';
 
-import { AuthInterceptorService } from '@interceptors/auth-interceptor.service';
 import { AuthService } from '@services/access/auth.service';
 
 describe('AuthInterceptorService', () => {
@@ -148,13 +148,13 @@ describe('AuthInterceptorService', () => {
     req.flush({});
   });
 
-  const B = 'http://localhost/auth/oidc';
-  const authed: [string, string, string][] = [
-    ['POST', `${B}/link`, 'link'],
-    ['GET', `${B}/identities`, 'identities'],
-    ['DELETE', `${B}/identities/5`, 'identity delete']
+  const OIDC_BASE = 'http://localhost/auth/oidc';
+  const authenticatedOidcRequests: [string, string, string][] = [
+    ['POST', `${OIDC_BASE}/link`, 'link'],
+    ['GET', `${OIDC_BASE}/identities`, 'identities'],
+    ['DELETE', `${OIDC_BASE}/identities/5`, 'identity delete']
   ];
-  authed.forEach(([method, url, name]) => {
+  authenticatedOidcRequests.forEach(([method, url, name]) => {
     it(`sends the bearer token on the authenticated OIDC endpoint: ${name}`, () => {
       configure(false);
 
@@ -166,15 +166,15 @@ describe('AuthInterceptorService', () => {
     });
   });
 
-  const unauthed: [string, string][] = [
-    ['POST', `${B}/link-pending`],
-    ['GET', `${B}/config?x=1`],
-    ['GET', `${B}/login`],
-    ['GET', `${B}/callback`],
+  const x: [string, string][] = [
+    ['POST', `${OIDC_BASE}/link-pending`],
+    ['GET', `${OIDC_BASE}/config?x=1`],
+    ['GET', `${OIDC_BASE}/login`],
+    ['GET', `${OIDC_BASE}/callback`],
     ['POST', 'http://localhost/auth/token'],
     ['POST', 'http://localhost/auth/oauth-token']
   ];
-  unauthed.forEach(([method, url]) => {
+  x.forEach(([method, url]) => {
     it(`leaves the unauthenticated endpoint alone: ${method} ${url}`, () => {
       configure(false);
 
