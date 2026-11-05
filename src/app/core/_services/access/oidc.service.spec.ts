@@ -1,3 +1,5 @@
+import { SKIP_AUTH_RETRY } from '@constants/http.config';
+
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
@@ -105,6 +107,13 @@ describe('OidcService', () => {
     expect(req.request.withCredentials).toBeTrue();
     req.flush(null, { status: 204, statusText: 'No Content' });
   });
+  it('startLink opts out of the interceptor auth retry', () => {
+    service.startLink('pw').subscribe();
+    const req = httpMock.expectOne(`${base}/auth/oidc/link`);
+    expect(req.request.context.get(SKIP_AUTH_RETRY)).toBeTrue();
+    req.flush({ authorizeUrl: 'https://idp' });
+  });
+
   it('startLink and linkPending skip the global error dialog; unlink and listIdentities do not', () => {
     service.startLink('pw').subscribe();
     const link = httpMock.expectOne(`${base}/auth/oidc/link`);

@@ -1,4 +1,4 @@
-import { HttpStatus } from '@constants/http.config';
+import { HttpStatus, SKIP_AUTH_RETRY } from '@constants/http.config';
 import { Observable, switchMap, take, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
@@ -45,7 +45,7 @@ export class AuthInterceptorService implements HttpInterceptor {
 
         return next.handle(this.withBearer(req, user._token)).pipe(
           catchError((error: HttpErrorResponse) => {
-            if (!this.isAuthFailure(error)) {
+            if (req.context.get(SKIP_AUTH_RETRY) || !this.isAuthFailure(error)) {
               return throwError(() => error);
             }
             return this.refreshAndSend(req, next, error);

@@ -1,9 +1,9 @@
-import { HTTP_SKIP_CACHE_HEADER_CONFIG, HTTP_SKIP_ERROR_HEADER_CONFIG } from '@constants/http.config';
+import { HTTP_SKIP_CACHE_HEADER_CONFIG, HTTP_SKIP_ERROR_HEADER_CONFIG, SKIP_AUTH_RETRY } from '@constants/http.config';
 import type { OidcConfigResponse, OidcIdentityList, OidcLinkResponse } from '@generated/api/types';
 import { Observable, of } from 'rxjs';
 import { catchError, map, shareReplay } from 'rxjs/operators';
 
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 
 import { ConfigService } from '@services/shared/config.service';
@@ -42,8 +42,19 @@ export class OidcService {
     return `${this.base()}/login?returnTo=${encodeURIComponent(returnTo)}`;
   }
 
+  /**
+   * A wrong password answers 401, which the auth interceptor would take for an expired token, refresh
+   * and replay. The context flag turns that retry off.
+   */
   startLink(password: string): Observable<OidcLinkResponse> {
-    return this.http.post<OidcLinkResponse>(`${this.base()}/link`, { password }, this.inlineErrorOptions);
+    return this.http.post<OidcLinkResponse>(
+      `${this.base()}/link`,
+      { password },
+      {
+        ...this.inlineErrorOptions,
+        context: new HttpContext().set(SKIP_AUTH_RETRY, true)
+      }
+    );
   }
 
   linkPending(username: string, password: string): Observable<void> {

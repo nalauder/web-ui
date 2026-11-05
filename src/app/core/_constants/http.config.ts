@@ -1,3 +1,5 @@
+import { HttpContextToken } from '@angular/common/http';
+
 /**
  * HTTP status codes the frontend reacts to explicitly.
  * `NETWORK_ERROR` is Angular's status for a request that never reached the server.
@@ -45,3 +47,10 @@ export const HTTP_SKIP_ERROR_HEADER_CONFIG = {
 export const HTTP_SKIP_CACHE_HEADER_CONFIG = {
   [HttpHeaderName.SKIP_CACHE]: 'true'
 } as const;
+
+/**
+ * Request context flag read by `AuthInterceptorService`: when true the bearer token is still attached,
+ * but a failure is rethrown instead of triggering a token refresh and replay. For endpoints that answer
+ * 401 for reasons unrelated to the token (e.g. a wrong password).
+ */
+export const SKIP_AUTH_RETRY = new HttpContextToken<boolean>(() => false);

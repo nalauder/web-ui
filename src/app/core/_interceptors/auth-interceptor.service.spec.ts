@@ -1,7 +1,8 @@
+import { SKIP_AUTH_RETRY } from '@constants/http.config';
 import { AuthInterceptorService } from '@interceptors/auth-interceptor.service';
 import { BehaviorSubject, of, throwError } from 'rxjs';
 
-import { HTTP_INTERCEPTORS, HttpClient, provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
+import { HTTP_INTERCEPTORS, HttpClient, HttpContext, provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
@@ -134,6 +135,24 @@ describe('AuthInterceptorService', () => {
 
     expect(status).toBe(401);
     expect(authService.refreshToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('rethrows a 401 without renewing when the request opts out of the auth retry', () => {
+    configure(false);
+
+    let status = 0;
+    http
+      .get(RESOURCE_URL, { context: new HttpContext().set(SKIP_AUTH_RETRY, true) })
+      .subscribe({ error: (err) => (status = err.status) });
+
+    const req = httpMock.expectOne(RESOURCE_URL);
+    expect(req.request.headers.get('Authorization')).toBe('Bearer current-token');
+    req.flush({}, { status: 401, statusText: 'Unauthorized' });
+
+    expect(status).toBe(401);
+    expect(authService.refreshToken).not.toHaveBeenCalled();
+    expect(authService.logOut).not.toHaveBeenCalled();
+    httpMock.expectNone(RESOURCE_URL);
   });
 
   it('leaves the auth endpoints alone so renewing cannot recurse', () => {
