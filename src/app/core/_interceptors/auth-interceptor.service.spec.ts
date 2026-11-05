@@ -2,7 +2,13 @@ import { SKIP_AUTH_RETRY } from '@constants/http.config';
 import { AuthInterceptorService } from '@interceptors/auth-interceptor.service';
 import { BehaviorSubject, of, throwError } from 'rxjs';
 
-import { HTTP_INTERCEPTORS, HttpClient, HttpContext, provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
+import {
+  HTTP_INTERCEPTORS,
+  HttpClient,
+  HttpContext,
+  provideHttpClient,
+  withInterceptorsFromDi
+} from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
