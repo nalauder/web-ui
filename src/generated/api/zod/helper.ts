@@ -402,6 +402,37 @@ export const zUnassignAgentHelperApiResponse = z.object({
   data: z.array(z.record(z.string(), z.unknown())).max(0)
 });
 
+export const zOidcConfigResponse = z.object({
+  enabled: z.boolean(),
+  displayName: z.string(),
+  localLoginEnabled: z.boolean()
+});
+
+export const zOidcLinkRequest = z.object({
+  password: z.string()
+});
+
+export const zOidcLinkPendingRequest = z.object({
+  username: z.string(),
+  password: z.string()
+});
+
+export const zOidcLinkResponse = z.object({
+  authorizeUrl: z.string()
+});
+
+export const zOidcIdentityList = z.object({
+  identities: z.array(
+    z.object({
+      id: z.int(),
+      label: z.string(),
+      issuer: z.string(),
+      createdAt: z.int(),
+      lastUsedAt: z.int().nullable()
+    })
+  )
+});
+
 export const zGetTaskwrapperdisplaysQuery = z.object({
   'page[after]': z
     .string()
@@ -800,3 +831,46 @@ export const zDeleteRefreshResponse = z.void();
  * Success
  */
 export const zPostRefreshResponse = zToken;
+
+/**
+ * Success
+ */
+export const zGetOidcConfigResponse = zOidcConfigResponse;
+
+export const zGetOidcLoginQuery = z.object({
+  returnTo: z.string()
+});
+
+export const zGetOidcCallbackQuery = z.object({
+  code: z.string().optional(),
+  state: z.string(),
+  error: z.string().optional()
+});
+
+export const zPostOidcLinkBody = zOidcLinkRequest;
+
+/**
+ * Success
+ */
+export const zPostOidcLinkResponse = zOidcLinkResponse;
+
+export const zPostOidcLinkPendingBody = zOidcLinkPendingRequest;
+
+/**
+ * Linked and signed in
+ */
+export const zPostOidcLinkPendingResponse = z.void();
+
+/**
+ * Success
+ */
+export const zGetOidcIdentitiesResponse = zOidcIdentityList;
+
+export const zDeleteOidcIdentitiesByIdPath = z.object({
+  id: z.int()
+});
+
+/**
+ * Success
+ */
+export const zDeleteOidcIdentitiesByIdResponse = z.void();

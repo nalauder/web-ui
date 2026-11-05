@@ -433,6 +433,35 @@ export type UnassignAgentHelperApiResponse = {
   }>;
 };
 
+export type OidcConfigResponse = {
+  enabled: boolean;
+  displayName: string;
+  localLoginEnabled: boolean;
+};
+
+export type OidcLinkRequest = {
+  password: string;
+};
+
+export type OidcLinkPendingRequest = {
+  username: string;
+  password: string;
+};
+
+export type OidcLinkResponse = {
+  authorizeUrl: string;
+};
+
+export type OidcIdentityList = {
+  identities: Array<{
+    id: number;
+    label: string;
+    issuer: string;
+    createdAt: number;
+    lastUsedAt: number | null;
+  }>;
+};
+
 export type GetTaskwrapperdisplaysData = {
   body?: never;
   path?: never;
@@ -2213,3 +2242,223 @@ export type PostRefreshResponses = {
 };
 
 export type PostRefreshResponse = PostRefreshResponses[keyof PostRefreshResponses];
+
+export type GetOidcConfigData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/v2/auth/oidc/config';
+};
+
+export type GetOidcConfigResponses = {
+  /**
+   * Success
+   */
+  200: OidcConfigResponse;
+};
+
+export type GetOidcConfigResponse = GetOidcConfigResponses[keyof GetOidcConfigResponses];
+
+export type GetOidcLoginData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Origin of the frontend to return to. Must be one of the origins this server trusts.
+     */
+    returnTo: string;
+  };
+  url: '/api/v2/auth/oidc/login';
+};
+
+export type GetOidcLoginErrors = {
+  /**
+   * returnTo is not a trusted origin
+   */
+  400: ErrorResponse;
+  /**
+   * Single sign-on is not enabled
+   */
+  404: ErrorResponse;
+};
+
+export type GetOidcLoginError = GetOidcLoginErrors[keyof GetOidcLoginErrors];
+
+export type GetOidcLoginResponses = {
+  /**
+   * successful operation
+   */
+  200: unknown;
+};
+
+export type GetOidcCallbackData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Authorization code from the provider.
+     */
+    code?: string;
+    state: string;
+    /**
+     * Error code from the provider, sent instead of code.
+     */
+    error?: string;
+  };
+  url: '/api/v2/auth/oidc/callback';
+};
+
+export type GetOidcCallbackErrors = {
+  /**
+   * The request is unknown and no frontend is configured to redirect to
+   */
+  400: ErrorResponse;
+};
+
+export type GetOidcCallbackError = GetOidcCallbackErrors[keyof GetOidcCallbackErrors];
+
+export type GetOidcCallbackResponses = {
+  /**
+   * successful operation
+   */
+  200: unknown;
+};
+
+export type PostOidcLinkData = {
+  body: OidcLinkRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v2/auth/oidc/link';
+};
+
+export type PostOidcLinkErrors = {
+  /**
+   * The password is missing
+   */
+  400: ErrorResponse;
+  /**
+   * Wrong password
+   */
+  401: ErrorResponse;
+  /**
+   * The request origin is not allowed to send credentials
+   */
+  403: ErrorResponse;
+  /**
+   * Single sign-on is not enabled
+   */
+  404: ErrorResponse;
+};
+
+export type PostOidcLinkError = PostOidcLinkErrors[keyof PostOidcLinkErrors];
+
+export type PostOidcLinkResponses = {
+  /**
+   * Success
+   */
+  200: OidcLinkResponse;
+};
+
+export type PostOidcLinkResponse = PostOidcLinkResponses[keyof PostOidcLinkResponses];
+
+export type PostOidcLinkPendingData = {
+  body: OidcLinkPendingRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v2/auth/oidc/link-pending';
+};
+
+export type PostOidcLinkPendingErrors = {
+  /**
+   * The username or password is missing
+   */
+  400: ErrorResponse;
+  /**
+   * Wrong credentials, or there is no pending link
+   */
+  401: ErrorResponse;
+  /**
+   * The request origin is not allowed to send credentials
+   */
+  403: ErrorResponse;
+  /**
+   * Single sign-on is not enabled
+   */
+  404: ErrorResponse;
+  /**
+   * The identity is already linked to another user
+   */
+  409: ErrorResponse;
+};
+
+export type PostOidcLinkPendingError = PostOidcLinkPendingErrors[keyof PostOidcLinkPendingErrors];
+
+export type PostOidcLinkPendingResponses = {
+  /**
+   * Linked and signed in
+   */
+  204: void;
+};
+
+export type PostOidcLinkPendingResponse = PostOidcLinkPendingResponses[keyof PostOidcLinkPendingResponses];
+
+export type GetOidcIdentitiesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/v2/auth/oidc/identities';
+};
+
+export type GetOidcIdentitiesErrors = {
+  /**
+   * Authentication failed
+   */
+  401: ErrorResponse;
+};
+
+export type GetOidcIdentitiesError = GetOidcIdentitiesErrors[keyof GetOidcIdentitiesErrors];
+
+export type GetOidcIdentitiesResponses = {
+  /**
+   * Success
+   */
+  200: OidcIdentityList;
+};
+
+export type GetOidcIdentitiesResponse = GetOidcIdentitiesResponses[keyof GetOidcIdentitiesResponses];
+
+export type DeleteOidcIdentitiesByIdData = {
+  body?: never;
+  path: {
+    id: number;
+  };
+  query?: never;
+  url: '/api/v2/auth/oidc/identities/{id}';
+};
+
+export type DeleteOidcIdentitiesByIdErrors = {
+  /**
+   * Authentication failed
+   */
+  401: ErrorResponse;
+  /**
+   * The request origin is not allowed to send credentials
+   */
+  403: ErrorResponse;
+  /**
+   * The identity does not exist or belongs to another user
+   */
+  404: ErrorResponse;
+};
+
+export type DeleteOidcIdentitiesByIdError = DeleteOidcIdentitiesByIdErrors[keyof DeleteOidcIdentitiesByIdErrors];
+
+export type DeleteOidcIdentitiesByIdResponses = {
+  /**
+   * Success
+   */
+  204: void;
+};
+
+export type DeleteOidcIdentitiesByIdResponse =
+  DeleteOidcIdentitiesByIdResponses[keyof DeleteOidcIdentitiesByIdResponses];
