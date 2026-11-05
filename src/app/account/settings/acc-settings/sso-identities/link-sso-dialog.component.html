@@ -1,0 +1,25 @@
+<h2 mat-dialog-title>Link single sign-on account</h2>
+<form (ngSubmit)="submit()">
+  <mat-dialog-content>
+    <p>Enter your Hashtopolis password to continue.</p>
+    <mat-form-field class="w-full">
+      <mat-label>Password</mat-label>
+      <input
+        matInput
+        type="password"
+        autocomplete="current-password"
+        [formControl]="password"
+        data-testid="input-link-password"
+      />
+    </mat-form-field>
+    @if (errorMessage) {
+      <mat-error data-testid="link-error">{{ errorMessage }}</mat-error>
+    }
+  </mat-dialog-content>
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" mat-dialog-close>Cancel</button>
+    <button mat-flat-button color="primary" type="submit" [disabled]="loading" data-testid="button-link-continue">
+      Continue
+    </button>
+  </mat-dialog-actions>
+</form>

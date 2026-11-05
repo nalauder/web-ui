@@ -26,6 +26,8 @@ import { RevealApiKeyDialogComponent } from '@src/app/account/api-keys/reveal-ap
 import { NewNotificationComponent } from '@src/app/account/notifications/notification/new-notification.component';
 import { NotificationsComponent } from '@src/app/account/notifications/notifications.component';
 import { AccountSettingsComponent } from '@src/app/account/settings/acc-settings/acc-settings.component';
+import { LinkSsoDialogComponent } from '@src/app/account/settings/acc-settings/sso-identities/link-sso-dialog.component';
+import { SsoIdentitiesComponent } from '@src/app/account/settings/acc-settings/sso-identities/sso-identities.component';
 import { UiSettingsComponent } from '@src/app/account/settings/ui-settings/ui-settings.component';
 import { ComponentsModule } from '@src/app/shared/components.module';
 import { CoreFormsModule } from '@src/app/shared/forms.module';
@@ -41,7 +43,9 @@ import { PipesModule } from '@src/app/shared/pipes.module';
     ApiKeysComponent,
     ApiKeyDetailComponent,
     NewApiKeyComponent,
-    RevealApiKeyDialogComponent
+    RevealApiKeyDialogComponent,
+    SsoIdentitiesComponent,
+    LinkSsoDialogComponent
   ],
   imports: [
     AccountRoutingModule,

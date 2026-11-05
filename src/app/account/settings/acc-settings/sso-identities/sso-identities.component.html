@@ -1,0 +1,31 @@
+@if (config?.enabled) {
+  <br />
+  <app-page-subtitle subtitle="Single sign-on"></app-page-subtitle>
+  <table class="w-full text-left" data-testid="sso-identities-table">
+    <thead>
+      <tr>
+        <th>Account</th>
+        <th>Linked</th>
+        <th>Last used</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (identity of identities; track identity.id) {
+        <tr>
+          <td>{{ identity.label }}</td>
+          <td>{{ identity.createdAt | uiDate }}</td>
+          <td>{{ identity.lastUsedAt === null ? 'Never' : (identity.lastUsedAt | uiDate) }}</td>
+          <td>
+            <button mat-button type="button" (click)="unlink(identity)" data-testid="button-unlink">Unlink</button>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <grid-buttons>
+    <button mat-flat-button color="primary" type="button" (click)="openLinkDialog()" data-testid="button-link-sso">
+      Link {{ config?.displayName }} account
+    </button>
+  </grid-buttons>
+}

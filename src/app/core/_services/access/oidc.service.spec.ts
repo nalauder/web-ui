@@ -97,4 +97,25 @@ describe('OidcService', () => {
     expect(req.request.withCredentials).toBeTrue();
     req.flush(null, { status: 204, statusText: 'No Content' });
   });
+  it('startLink and linkPending skip the global error dialog; unlink and listIdentities do not', () => {
+    service.startLink('pw').subscribe();
+    const link = httpMock.expectOne(`${base}/auth/oidc/link`);
+    expect(link.request.headers.get('X-Skip-Error-Dialog')).toBe('true');
+    link.flush({ authorizeUrl: 'https://idp' });
+
+    service.linkPending('u', 'pw').subscribe();
+    const pending = httpMock.expectOne(`${base}/auth/oidc/link-pending`);
+    expect(pending.request.headers.get('X-Skip-Error-Dialog')).toBe('true');
+    pending.flush(null);
+
+    service.unlink(3).subscribe();
+    const unlink = httpMock.expectOne(`${base}/auth/oidc/identities/3`);
+    expect(unlink.request.headers.has('X-Skip-Error-Dialog')).toBeFalse();
+    unlink.flush(null);
+
+    service.listIdentities().subscribe();
+    const list = httpMock.expectOne(`${base}/auth/oidc/identities`);
+    expect(list.request.headers.has('X-Skip-Error-Dialog')).toBeFalse();
+    list.flush({ identities: [] });
+  });
 });

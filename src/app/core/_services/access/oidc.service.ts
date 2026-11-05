@@ -1,3 +1,4 @@
+import { HTTP_SKIP_ERROR_HEADER_CONFIG } from '@constants/http.config';
 import type { OidcConfigResponse, OidcIdentityList, OidcLinkResponse } from '@generated/api/types';
 import { Observable, of } from 'rxjs';
 import { catchError, map, shareReplay } from 'rxjs/operators';
@@ -22,6 +23,9 @@ export class OidcService {
   private readonly http = inject(HttpClient);
   private readonly cs = inject(ConfigService);
 
+  /** Link errors are shown inline by the caller, so the global error modal is skipped. */
+  private readonly inlineErrorOptions = { withCredentials: true, headers: HTTP_SKIP_ERROR_HEADER_CONFIG };
+
   /** Public OIDC settings, fetched once. Falls back to "SSO disabled" if the request fails. */
   getConfig(): Observable<OidcConfigResponse> {
     this.config$ ??= this.http.get<OidcConfigResponse>(`${this.base()}/config`).pipe(
@@ -37,11 +41,11 @@ export class OidcService {
   }
 
   startLink(password: string): Observable<OidcLinkResponse> {
-    return this.http.post<OidcLinkResponse>(`${this.base()}/link`, { password }, { withCredentials: true });
+    return this.http.post<OidcLinkResponse>(`${this.base()}/link`, { password }, this.inlineErrorOptions);
   }
 
   linkPending(username: string, password: string): Observable<void> {
-    return this.http.post<void>(`${this.base()}/link-pending`, { username, password }, { withCredentials: true });
+    return this.http.post<void>(`${this.base()}/link-pending`, { username, password }, this.inlineErrorOptions);
   }
 
   listIdentities(): Observable<OidcIdentityView[]> {
