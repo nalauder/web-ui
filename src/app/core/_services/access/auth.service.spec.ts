@@ -11,6 +11,8 @@ import { AuthData } from '@models/auth-user.model';
 import { Permission } from '@models/global-permission-group.model';
 
 import { AuthService } from '@services/access/auth.service';
+import { LoginRedirectService } from '@services/access/login-redirect.service';
+import { OidcService } from '@services/access/oidc.service';
 import { PermissionService } from '@services/permission/permission.service';
 import { ConfigService } from '@services/shared/config.service';
 import { LocalStorageService } from '@services/storage/local-storage.service';
@@ -418,5 +420,112 @@ describe('AuthService refresh token', () => {
 
     httpMock.expectNone(REFRESH_URL);
     expect(service.token).toBeNull();
+  });
+});
+
+describe('AuthService.completeSsoLogin', () => {
+  let service: AuthService;
+  let httpMock: HttpTestingController;
+  let storage: { _store: Record<string, AuthData> };
+  let loadPermissions: jasmine.Spy;
+  let handlePostLoginRedirect: jasmine.Spy;
+
+  const REFRESH_URL = 'http://localhost/auth/refresh';
+
+  /** A token whose payload decodes to userId 7 and a username claim. */
+  const tokenForUser7 = () => {
+    const payload = Buffer.from(JSON.stringify({ userId: 7, username: 'alice' }), 'utf8')
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    return `eyJhbGciOiJub25lIn0.${payload}.`;
+  };
+
+  beforeEach(() => {
+    const storageMock = {
+      _store: {} as Record<string, AuthData>,
+      getItem(key: string): AuthData | null {
+        return this._store[key] || null;
+      },
+      setItem(key: string, value: AuthData) {
+        this._store[key] = value;
+      },
+      removeItem(key: string) {
+        delete this._store[key];
+      }
+    };
+    loadPermissions = jasmine.createSpy('loadPermissions').and.returnValue(of([]));
+    handlePostLoginRedirect = jasmine.createSpy('handlePostLoginRedirect');
+
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        AuthService,
+        { provide: ConfigService, useValue: { getEndpoint: () => 'http://localhost' } },
+        { provide: LocalStorageService, useValue: storageMock },
+        { provide: Router, useValue: { navigate: jasmine.createSpy('navigate') } },
+        { provide: PermissionService, useValue: { loadPermissions, clearPermissionCache: () => {} } },
+        { provide: LoginRedirectService, useValue: { handlePostLoginRedirect } }
+      ]
+    });
+
+    service = TestBed.inject(AuthService);
+    httpMock = TestBed.inject(HttpTestingController);
+    storage = storageMock;
+    sessionStorage.removeItem(OidcService.REDIRECT_KEY);
+  });
+
+  afterEach(() => {
+    sessionStorage.removeItem(OidcService.REDIRECT_KEY);
+    httpMock.verify();
+  });
+
+  it('completeSsoLogin stores session and loads permissions', () => {
+    const expires = Math.floor(Date.now() / 1000) + 3600;
+    let completed = false;
+
+    service.completeSsoLogin().subscribe(() => (completed = true));
+
+    const req = httpMock.expectOne(REFRESH_URL);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.withCredentials).toBeTrue();
+    req.flush({ token: tokenForUser7(), expires });
+
+    expect(completed).toBeTrue();
+    const stored = storage._store[AuthService.STORAGE_KEY];
+    expect(stored._token).toBe(tokenForUser7());
+    expect(stored.userId).toBe(7);
+    expect(stored.canonicalUsername).toBe('alice');
+    expect(service.isAuthenticated).toBeTrue();
+    expect(loadPermissions).toHaveBeenCalledTimes(1);
+  });
+
+  it('completeSsoLogin restores redirect from sessionStorage and clears it', () => {
+    sessionStorage.setItem(OidcService.REDIRECT_KEY, '/agents');
+
+    service.completeSsoLogin().subscribe();
+    // The key is consumed before the request is answered
+    expect(sessionStorage.getItem(OidcService.REDIRECT_KEY)).toBeNull();
+
+    httpMock.expectOne(REFRESH_URL).flush({ token: tokenForUser7(), expires: Math.floor(Date.now() / 1000) + 3600 });
+
+    expect(handlePostLoginRedirect).toHaveBeenCalledOnceWith('7', '/agents');
+    expect(service.redirectUrl).toBe('');
+  });
+
+  it('completeSsoLogin errors when refresh returns 401 and stores nothing', () => {
+    let failed = false;
+
+    service.completeSsoLogin().subscribe({ error: () => (failed = true) });
+    httpMock.expectOne(REFRESH_URL).flush({ message: 'nope' }, { status: 401, statusText: 'Unauthorized' });
+
+    expect(failed).toBeTrue();
+    expect(storage._store[AuthService.STORAGE_KEY]).toBeUndefined();
+    expect(service.token).toBeNull();
+    expect(service.isAuthenticated).toBeFalse();
+    expect(loadPermissions).not.toHaveBeenCalled();
+    expect(handlePostLoginRedirect).not.toHaveBeenCalled();
   });
 });

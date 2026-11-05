@@ -5,6 +5,7 @@ import {
   Observable,
   ReplaySubject,
   Subject,
+  defer,
   firstValueFrom,
   from,
   of,
@@ -24,6 +25,7 @@ import { UserId } from '@models/id.types';
 import { JwtPayload } from '@models/jwt-payload.model';
 
 import { LoginRedirectService } from '@services/access/login-redirect.service';
+import { OidcService } from '@services/access/oidc.service';
 import { PermissionService } from '@services/permission/permission.service';
 import { ConfigService } from '@services/shared/config.service';
 import { LocalStorageService } from '@services/storage/local-storage.service';
@@ -189,60 +191,85 @@ export class AuthService {
       )
       .pipe(
         catchError(this.handleError),
-        switchMap((resData) => {
-          const token = resData.token;
-          const expires = +resData.expires;
-
-          const canonicalFromJwt = this.getCanonicalUsernameFromJwt(token);
-          if (canonicalFromJwt) {
-            this.handleAuthentication(token, expires, canonicalFromJwt);
-            this.isAuthenticated = true;
-            this.userAuthChanged(true);
-            return this.injector.get(PermissionService).loadPermissions();
-          }
-
-          const payload = this.decodeJwt(token);
-          const rawUid = payload?.userId ?? payload?.sub;
-          const uid = typeof rawUid === 'string' ? Number(rawUid) : typeof rawUid === 'number' ? rawUid : null;
-
-          if (uid == null || !Number.isFinite(uid)) {
-            console.warn('Could not extract userId from token. Falling back to form username.');
-            this.handleAuthentication(token, expires, username);
-            this.isAuthenticated = true;
-            this.userAuthChanged(true);
-            return this.injector.get(PermissionService).loadPermissions();
-          }
-
-          return this.fetchCanonicalUsername(uid, token).pipe(
-            tap((canonicalFromApi /* string | null */) => {
-              const canonical = canonicalFromApi ?? username;
-              this.handleAuthentication(token, expires, canonical);
-              this.isAuthenticated = true;
-              this.userAuthChanged(true);
-            }),
-            switchMap(() => this.injector.get(PermissionService).loadPermissions()),
-            catchError((err) => {
-              console.warn('Failed to fetch canonical username from /ui/users/{id}, using form value', err);
-              this.handleAuthentication(token, expires, username);
-              this.isAuthenticated = true;
-              this.userAuthChanged(true);
-              return this.injector.get(PermissionService).loadPermissions();
-            })
-          );
-        }),
-        tap(() => {
-          const redirectService = this.injector.get(LoginRedirectService);
-          const redirectUrl = this.redirectUrl;
-          const uid = this.getUserId(this.token);
-          if (uid != null) {
-            redirectService.handlePostLoginRedirect(String(uid), redirectUrl);
-          } else {
-            console.warn('No userId available for post-login redirect');
-          }
-          this.redirectUrl = '';
-        }),
-        map(() => void 0)
+        switchMap((resData) => this.onAuthenticated(resData.token, +resData.expires, username))
       );
+  }
+
+  /**
+   * Establishes the session for a freshly issued access token: resolves the canonical username,
+   * stores the session, loads the permissions and performs the post-login redirect.
+   *
+   * @param token - The access token.
+   * @param expiresEpochSec - When the token stops being accepted, in epoch seconds.
+   * @param fallbackUsername - Username to use when neither the token nor the API yields one.
+   */
+  private onAuthenticated(token: string, expiresEpochSec: number, fallbackUsername: string): Observable<void> {
+    return defer(() => {
+      const canonicalFromJwt = this.getCanonicalUsernameFromJwt(token);
+      if (canonicalFromJwt) {
+        this.handleAuthentication(token, expiresEpochSec, canonicalFromJwt);
+        this.isAuthenticated = true;
+        this.userAuthChanged(true);
+        return this.injector.get(PermissionService).loadPermissions();
+      }
+
+      const payload = this.decodeJwt(token);
+      const rawUid = payload?.userId ?? payload?.sub;
+      const uid = typeof rawUid === 'string' ? Number(rawUid) : typeof rawUid === 'number' ? rawUid : null;
+
+      if (uid == null || !Number.isFinite(uid)) {
+        console.warn('Could not extract userId from token. Falling back to form username.');
+        this.handleAuthentication(token, expiresEpochSec, fallbackUsername);
+        this.isAuthenticated = true;
+        this.userAuthChanged(true);
+        return this.injector.get(PermissionService).loadPermissions();
+      }
+
+      return this.fetchCanonicalUsername(uid, token).pipe(
+        tap((canonicalFromApi /* string | null */) => {
+          const canonical = canonicalFromApi ?? fallbackUsername;
+          this.handleAuthentication(token, expiresEpochSec, canonical);
+          this.isAuthenticated = true;
+          this.userAuthChanged(true);
+        }),
+        switchMap(() => this.injector.get(PermissionService).loadPermissions()),
+        catchError((err) => {
+          console.warn('Failed to fetch canonical username from /ui/users/{id}, using form value', err);
+          this.handleAuthentication(token, expiresEpochSec, fallbackUsername);
+          this.isAuthenticated = true;
+          this.userAuthChanged(true);
+          return this.injector.get(PermissionService).loadPermissions();
+        })
+      );
+    }).pipe(
+      tap(() => {
+        const redirectService = this.injector.get(LoginRedirectService);
+        const redirectUrl = this.redirectUrl;
+        const uid = this.getUserId(this.token);
+        if (uid != null) {
+          redirectService.handlePostLoginRedirect(String(uid), redirectUrl);
+        } else {
+          console.warn('No userId available for post-login redirect');
+        }
+        this.redirectUrl = '';
+      }),
+      map(() => void 0)
+    );
+  }
+
+  /**
+   * Completes an SSO login. The server's callback has already set the refresh cookie, so the session
+   * is obtained by exchanging it. This deliberately avoids `storeRefreshedSession`, which requires an
+   * existing session.
+   */
+  completeSsoLogin(): Observable<void> {
+    const redirect = sessionStorage.getItem(OidcService.REDIRECT_KEY);
+    sessionStorage.removeItem(OidcService.REDIRECT_KEY);
+    this.redirectUrl = String(redirect ?? '');
+
+    return this.http
+      .post<AuthResponseData>(this.cs.getEndpoint() + this.endpoint + '/refresh', null, { withCredentials: true })
+      .pipe(switchMap((resData) => this.onAuthenticated(resData.token, +resData.expires, '')));
   }
 
   get token(): string | null {
