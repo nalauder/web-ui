@@ -21,7 +21,7 @@ export class LinkSsoDialogComponent {
 
   private readonly oidc = inject(OidcService);
   private readonly destroyRef = inject(DestroyRef);
-  readonly dialogRef = inject(MatDialogRef<LinkSsoDialogComponent>);
+  private readonly dialogRef = inject(MatDialogRef<LinkSsoDialogComponent>);
 
   submit(): void {
     if (this.password.invalid || this.loading) {
@@ -34,9 +34,13 @@ export class LinkSsoDialogComponent {
       .startLink(this.password.value)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ authorizeUrl }) => this.navigateTo(authorizeUrl),
+        next: ({ authorizeUrl }) => {
+          this.dialogRef.close();
+          this.navigateTo(authorizeUrl);
+        },
         error: (err: unknown) => {
           this.loading = false;
+          this.password.reset();
           this.errorMessage =
             err instanceof HttpErrorResponse && err.status === HttpStatus.UNAUTHORIZED
               ? 'Incorrect password.'

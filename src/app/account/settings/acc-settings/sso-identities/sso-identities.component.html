@@ -1,28 +1,43 @@
 @if (config?.enabled) {
   <br />
   <app-page-subtitle subtitle="Single sign-on"></app-page-subtitle>
-  <table class="w-full text-left" data-testid="sso-identities-table">
-    <thead>
-      <tr>
-        <th>Account</th>
-        <th>Linked</th>
-        <th>Last used</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (identity of identities; track identity.id) {
+  @if (identities.length === 0) {
+    <p data-testid="sso-empty-state">No single sign-on accounts linked.</p>
+  } @else {
+    <table class="w-full text-left" data-testid="sso-identities-table">
+      <caption class="sr-only">
+        Linked single sign-on accounts
+      </caption>
+      <thead>
         <tr>
-          <td>{{ identity.label }}</td>
-          <td>{{ identity.createdAt | uiDate }}</td>
-          <td>{{ identity.lastUsedAt === null ? 'Never' : (identity.lastUsedAt | uiDate) }}</td>
-          <td>
-            <button mat-button type="button" (click)="unlink(identity)" data-testid="button-unlink">Unlink</button>
-          </td>
+          <th scope="col">Account</th>
+          <th scope="col">Linked</th>
+          <th scope="col">Last used</th>
+          <th scope="col"><span class="sr-only">Actions</span></th>
         </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (identity of identities; track identity.id) {
+          <tr>
+            <td>{{ identity.label }}</td>
+            <td>{{ identity.createdAt | uiDate }}</td>
+            <td>{{ identity.lastUsedAt === null ? 'Never' : (identity.lastUsedAt | uiDate) }}</td>
+            <td>
+              <button
+                mat-button
+                type="button"
+                [attr.aria-label]="'Unlink ' + identity.label"
+                (click)="unlink(identity)"
+                data-testid="button-unlink"
+              >
+                Unlink
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
   <grid-buttons>
     <button mat-flat-button color="primary" type="button" (click)="openLinkDialog()" data-testid="button-link-sso">
       Link {{ config?.displayName }} account

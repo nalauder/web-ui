@@ -9,11 +9,12 @@
         type="password"
         autocomplete="current-password"
         [formControl]="password"
+        [attr.aria-describedby]="errorMessage ? 'link-sso-error' : null"
         data-testid="input-link-password"
       />
     </mat-form-field>
     @if (errorMessage) {
-      <mat-error data-testid="link-error">{{ errorMessage }}</mat-error>
+      <mat-error id="link-sso-error" role="alert" data-testid="link-error">{{ errorMessage }}</mat-error>
     }
   </mat-dialog-content>
   <mat-dialog-actions align="end">

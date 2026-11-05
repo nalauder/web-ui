@@ -1,3 +1,5 @@
+import { SsoErrorReason, isSsoErrorReason } from '@constants/sso.config';
+
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatDialog } from '@angular/material/dialog';
@@ -10,9 +12,9 @@ import { AlertService } from '@services/shared/alert.service';
 import { LinkSsoDialogComponent } from '@src/app/account/settings/acc-settings/sso-identities/link-sso-dialog.component';
 
 const GENERIC_ERROR = 'Single sign-on failed. Please try again or contact your administrator.';
-const LINK_ERROR_MESSAGES: Record<string, string> = {
-  already_linked: 'That account is already linked to another Hashtopolis user.',
-  expired: 'Your sign-in attempt expired. Please try again.'
+const LINK_ERROR_MESSAGES: Partial<Record<SsoErrorReason, string>> = {
+  [SsoErrorReason.ALREADY_LINKED]: 'That account is already linked to another Hashtopolis user.',
+  [SsoErrorReason.EXPIRED]: 'Your sign-in attempt expired. Please try again.'
 };
 
 /** Account settings section to list, link and unlink SSO identities. Renders nothing when SSO is disabled. */
@@ -82,7 +84,10 @@ export class SsoIdentitiesComponent implements OnInit {
     if (sso === 'linked') {
       this.alert.showSuccessMessage('Single sign-on account linked.');
     } else if (sso === 'error') {
-      this.alert.showErrorMessage(LINK_ERROR_MESSAGES[params.get('reason') ?? ''] ?? GENERIC_ERROR);
+      const reason = params.get('reason');
+      this.alert.showErrorMessage(
+        (isSsoErrorReason(reason) ? LINK_ERROR_MESSAGES[reason] : undefined) ?? GENERIC_ERROR
+      );
     } else {
       return;
     }

@@ -121,6 +121,21 @@ describe('SsoIdentitiesComponent', () => {
     expect(oidc.unlink).not.toHaveBeenCalled();
   });
 
+  it('labels each Unlink button with the identity', async () => {
+    await create();
+    const labels = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('[data-testid="button-unlink"]')
+    ).map((b) => b.getAttribute('aria-label'));
+    expect(labels).toEqual(['Unlink alice@corp', 'Unlink alice@other']);
+  });
+
+  it('renders an empty state when no identities are linked', async () => {
+    oidc.listIdentities.and.returnValue(of([]));
+    await create();
+    expect(text()).toContain('No single sign-on accounts linked.');
+    expect(fixture.nativeElement.querySelector('table')).toBeNull();
+  });
+
   it('opens the link dialog', async () => {
     await create();
     fixture.componentInstance.openLinkDialog();
@@ -161,16 +176,18 @@ describe('LinkSsoDialogComponent', () => {
   let fixture: ComponentFixture<LinkSsoDialogComponent>;
   let component: LinkSsoDialogComponent;
   let oidc: jasmine.SpyObj<OidcService>;
+  let dialogRef: { close: jasmine.Spy };
 
   beforeEach(() => {
     oidc = jasmine.createSpyObj<OidcService>('OidcService', ['startLink']);
+    dialogRef = { close: jasmine.createSpy('close') };
     TestBed.configureTestingModule({
       declarations: [LinkSsoDialogComponent],
       imports: [ReactiveFormsModule],
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
         { provide: OidcService, useValue: oidc },
-        { provide: MatDialogRef, useValue: { close: jasmine.createSpy('close') } }
+        { provide: MatDialogRef, useValue: dialogRef }
       ]
     });
     fixture = TestBed.createComponent(LinkSsoDialogComponent);
@@ -189,6 +206,18 @@ describe('LinkSsoDialogComponent', () => {
     expect(component.navigateTo).toHaveBeenCalledWith('https://idp/authorize?x=1');
   });
 
+  it('closes the dialog before navigating', () => {
+    const order: string[] = [];
+    dialogRef.close.and.callFake(() => order.push('close'));
+    (component.navigateTo as jasmine.Spy).and.callFake(() => order.push('navigate'));
+    oidc.startLink.and.returnValue(of({ authorizeUrl: 'https://idp/authorize' }));
+    component.password.setValue('secret');
+
+    component.submit();
+
+    expect(order).toEqual(['close', 'navigate']);
+  });
+
   it('link dialog 401 shows incorrect password', () => {
     oidc.startLink.and.returnValue(throwError(() => new HttpErrorResponse({ status: 401 })));
     component.password.setValue('wrong');
@@ -197,6 +226,7 @@ describe('LinkSsoDialogComponent', () => {
     fixture.detectChanges();
 
     expect(component.navigateTo).not.toHaveBeenCalled();
+    expect(component.password.value).toBe('');
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Incorrect password.');
   });
 });
