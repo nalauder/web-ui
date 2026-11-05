@@ -1,4 +1,7 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { SsoErrorReason } from '@constants/sso.config';
+
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 
 import { AuthService } from '@services/access/auth.service';
@@ -15,12 +18,19 @@ import { AuthService } from '@services/access/auth.service';
 export class SsoCallbackComponent implements OnInit {
   private authService = inject(AuthService);
   private router = inject(Router);
+  private destroyRef = inject(DestroyRef);
 
   ngOnInit(): void {
-    this.authService.completeSsoLogin().subscribe({
-      error: () => {
-        this.router.navigate(['/auth'], { queryParams: { sso: 'error', reason: 'expired' }, replaceUrl: true });
-      }
-    });
+    this.authService
+      .completeSsoLogin()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        error: () => {
+          this.router.navigate(['/auth'], {
+            queryParams: { sso: 'error', reason: SsoErrorReason.EXPIRED },
+            replaceUrl: true
+          });
+        }
+      });
   }
 }

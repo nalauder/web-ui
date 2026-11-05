@@ -1,3 +1,4 @@
+import { SsoErrorReason } from '@constants/sso.config';
 import { of, throwError } from 'rxjs';
 
 import { HttpErrorResponse } from '@angular/common/http';
@@ -40,7 +41,7 @@ describe('SsoCallbackComponent', () => {
   it('navigates to /auth with sso=error&reason=expired and replaceUrl on failure', () => {
     setup(throwError(() => new HttpErrorResponse({ status: 401 })));
     expect(router.navigate).toHaveBeenCalledOnceWith(['/auth'], {
-      queryParams: { sso: 'error', reason: 'expired' },
+      queryParams: { sso: 'error', reason: SsoErrorReason.EXPIRED },
       replaceUrl: true
     });
   });
