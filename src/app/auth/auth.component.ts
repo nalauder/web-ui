@@ -1,10 +1,13 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { AfterViewInit, Component, DestroyRef, ElementRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormGroup } from '@angular/forms';
 import { FormControl } from '@angular/forms';
 import { Validators } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 
 import { AuthService } from '@services/access/auth.service';
+import { OidcConfigResponse, OidcService } from '@services/access/oidc.service';
 import { ConfigService } from '@services/shared/config.service';
 import { ThemeService } from '@services/shared/theme.service';
 
@@ -15,6 +18,13 @@ export interface LoginForm {
   username: FormControl<string | null>;
   password: FormControl<string | null>;
 }
+
+/** Fixed messages for `?sso=error&reason=<code>`. Unknown reasons use `provider_error`. */
+const SSO_ERROR_MESSAGES: Record<string, string> = {
+  expired: 'Your sign-in attempt expired. Please try again.',
+  provider_error: 'Single sign-on failed. Please try again or contact your administrator.',
+  user_disabled: 'Your account is disabled. Please contact your administrator.'
+};
 
 @Component({
   selector: 'app-login',
@@ -28,6 +38,8 @@ export class AuthComponent implements OnInit, AfterViewInit {
   private authService = inject(AuthService);
   private themeService = inject(ThemeService);
   private host = inject(ElementRef);
+  private oidcService = inject(OidcService);
+  private route = inject(ActivatedRoute);
 
   /** Form group for the new SuperHashlist. */
   loginForm: FormGroup<LoginForm>;
@@ -38,6 +50,12 @@ export class AuthComponent implements OnInit, AfterViewInit {
 
   /** on loggin loading */
   isLoading = false;
+
+  oidcConfig: OidcConfigResponse = { enabled: false, displayName: 'SSO', localLoginEnabled: true };
+  /** True after returning from the provider with an identity that still has to be linked. */
+  linkRequired = false;
+  /** Message shown above the form (SSO error or link failure). */
+  ssoMessage = '';
 
   constructor() {
     this.headerConfig = environment.config.header;
@@ -53,6 +71,49 @@ export class AuthComponent implements OnInit, AfterViewInit {
     });
     this.setupConfig();
     this.configService.getEndpoint();
+
+    const params = this.route.snapshot.queryParamMap;
+    const sso = params.get('sso');
+    this.linkRequired = sso === 'link-required';
+    if (sso === 'error') {
+      this.ssoMessage = this.errorMessage(params.get('reason'));
+    }
+    this.oidcService
+      .getConfig()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((config) => {
+        this.oidcConfig = config;
+      });
+  }
+
+  get showSsoButton(): boolean {
+    return this.oidcConfig.enabled && !this.linkRequired;
+  }
+
+  get showForm(): boolean {
+    return this.oidcConfig.localLoginEnabled || this.linkRequired;
+  }
+
+  get linkRequiredMessage(): string {
+    return `Your ${this.oidcConfig.displayName} account isn't linked to a Hashtopolis account yet. Sign in with your Hashtopolis username and password to link it.`;
+  }
+
+  /** Starts the SSO login, remembering where to return to afterwards. */
+  onSsoLogin(): void {
+    const redirect = this.authService.redirectUrl;
+    if (redirect) {
+      sessionStorage.setItem(OidcService.REDIRECT_KEY, redirect);
+    }
+    this.navigateTo(this.oidcService.loginUrl());
+  }
+
+  /** Full-page navigation; a method so tests can spy on it. */
+  navigateTo(url: string): void {
+    window.location.href = url;
+  }
+
+  private errorMessage(reason: string | null): string {
+    return SSO_ERROR_MESSAGES[reason ?? ''] ?? SSO_ERROR_MESSAGES['provider_error'];
   }
 
   /**
@@ -97,6 +158,11 @@ export class AuthComponent implements OnInit, AfterViewInit {
 
     this.isLoading = true; // Show spinner
 
+    if (this.linkRequired) {
+      this.submitLink(username, password);
+      return;
+    }
+
     const authObs = this.authService.logIn(username, password);
 
     authObs.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -112,5 +178,35 @@ export class AuthComponent implements OnInit, AfterViewInit {
         this.isLoading = false; // Hide spinner after attempting to log in
       }
     });
+  }
+
+  /** Link-required mode: verify the local credentials, then finish the SSO login. */
+  private submitLink(username: string, password: string): void {
+    this.ssoMessage = '';
+    this.oidcService
+      .linkPending(username, password)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.finishLink(),
+        error: (err: HttpErrorResponse) => {
+          this.isLoading = false;
+          // 401 = wrong credentials (the pending request is still valid); anything else means it is gone.
+          this.ssoMessage = err.status === 401 ? 'Incorrect username or password.' : SSO_ERROR_MESSAGES['expired'];
+        }
+      });
+  }
+
+  private finishLink(): void {
+    this.authService
+      .completeSsoLogin()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.loginForm.reset(),
+        error: () => {
+          this.isLoading = false;
+          this.ssoMessage = SSO_ERROR_MESSAGES['expired'];
+        },
+        complete: () => (this.isLoading = false)
+      });
   }
 }

@@ -42,3 +42,12 @@
     font-size: var(--text-sm);
   }
 }
+
+.sso-login {
+  margin-top: var(--space-md);
+  text-align: center;
+
+  button {
+    width: 100%;
+  }
+}
