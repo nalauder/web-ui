@@ -6,11 +6,12 @@ import { RouterModule } from '@angular/router';
 import { AuthRoutingModule } from '@src/app/auth/auth-routing.module';
 import { AuthComponent } from '@src/app/auth/auth.component';
 import { ForgotPasswordComponent } from '@src/app/auth/forgot-password/forgot-password.component';
+import { SsoCallbackComponent } from '@src/app/auth/sso-callback/sso-callback.component';
 import { ComponentsModule } from '@src/app/shared/components.module';
 import { CoreFormsModule } from '@src/app/shared/forms.module';
 
 @NgModule({
-  declarations: [AuthComponent, ForgotPasswordComponent],
+  declarations: [AuthComponent, ForgotPasswordComponent, SsoCallbackComponent],
   imports: [
     AuthRoutingModule,
     RouterModule.forChild([
