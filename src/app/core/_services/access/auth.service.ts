@@ -265,11 +265,19 @@ export class AuthService {
   completeSsoLogin(): Observable<void> {
     const redirect = sessionStorage.getItem(OidcService.REDIRECT_KEY);
     sessionStorage.removeItem(OidcService.REDIRECT_KEY);
+    const previousRedirectUrl = this.redirectUrl;
     this.redirectUrl = String(redirect ?? '');
 
     return this.http
       .post<AuthResponseData>(this.cs.getEndpoint() + this.endpoint + '/refresh', null, { withCredentials: true })
-      .pipe(switchMap((resData) => this.onAuthenticated(resData.token, +resData.expires, '')));
+      .pipe(
+        switchMap((resData) => this.onAuthenticated(resData.token, +resData.expires, '')),
+        catchError((err) => {
+          // Don't leave the SSO target behind for a later password login
+          this.redirectUrl = previousRedirectUrl;
+          return throwError(() => err);
+        })
+      );
   }
 
   get token(): string | null {

@@ -528,4 +528,13 @@ describe('AuthService.completeSsoLogin', () => {
     expect(loadPermissions).not.toHaveBeenCalled();
     expect(handlePostLoginRedirect).not.toHaveBeenCalled();
   });
+
+  it('completeSsoLogin does not keep the redirect target after a failed completion', () => {
+    sessionStorage.setItem(OidcService.REDIRECT_KEY, '/agents');
+
+    service.completeSsoLogin().subscribe({ error: () => undefined });
+    httpMock.expectOne(REFRESH_URL).flush({ message: 'nope' }, { status: 401, statusText: 'Unauthorized' });
+
+    expect(service.redirectUrl).toBe('');
+  });
 });
