@@ -87,8 +87,20 @@ export class AuthInterceptorService implements HttpInterceptor {
     return error.status === HttpStatus.UNAUTHORIZED || this.authService.isAccessTokenExpired();
   }
 
+  private static readonly UNAUTHENTICATED_PATHS = [
+    '/auth/token',
+    '/auth/oauth-token',
+    '/auth/refresh',
+    '/auth/oidc/config',
+    '/auth/oidc/login',
+    '/auth/oidc/callback',
+    '/auth/oidc/link-pending'
+  ];
+
   private isAuthRequest(req: HttpRequest<unknown>): boolean {
-    return req.url.includes('/auth');
+    // Mirrors the server's JWT ignore list; other /auth/* routes (e.g. /auth/oidc/link) need the bearer token
+    const path = req.url.split(/[?#]/)[0].replace(/\/+$/, '');
+    return AuthInterceptorService.UNAUTHENTICATED_PATHS.some((p) => path.endsWith(p));
   }
 
   private withBearer(req: HttpRequest<unknown>, token: string): HttpRequest<unknown> {

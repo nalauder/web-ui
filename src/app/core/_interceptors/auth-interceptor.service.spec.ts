@@ -148,6 +148,44 @@ describe('AuthInterceptorService', () => {
     req.flush({});
   });
 
+  const B = 'http://localhost/auth/oidc';
+  const authed: [string, string, string][] = [
+    ['POST', `${B}/link`, 'link'],
+    ['GET', `${B}/identities`, 'identities'],
+    ['DELETE', `${B}/identities/5`, 'identity delete']
+  ];
+  authed.forEach(([method, url, name]) => {
+    it(`sends the bearer token on the authenticated OIDC endpoint: ${name}`, () => {
+      configure(false);
+
+      http.request(method, url).subscribe();
+
+      const req = httpMock.expectOne(url);
+      expect(req.request.headers.get('Authorization')).toBe('Bearer current-token');
+      req.flush({});
+    });
+  });
+
+  const unauthed: [string, string][] = [
+    ['POST', `${B}/link-pending`],
+    ['GET', `${B}/config?x=1`],
+    ['GET', `${B}/login`],
+    ['GET', `${B}/callback`],
+    ['POST', 'http://localhost/auth/token'],
+    ['POST', 'http://localhost/auth/oauth-token']
+  ];
+  unauthed.forEach(([method, url]) => {
+    it(`leaves the unauthenticated endpoint alone: ${method} ${url}`, () => {
+      configure(false);
+
+      http.request(method, url).subscribe();
+
+      const req = httpMock.expectOne(url);
+      expect(req.request.headers.has('Authorization')).toBe(false);
+      req.flush({});
+    });
+  });
+
   it('forwards the request untouched when nobody is logged in', () => {
     configure(false);
     currentUser.next(null);
